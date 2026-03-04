@@ -31,7 +31,8 @@ const TARGET_URL_SEARCH = 'https://lmarena.ai/zh/c/new?mode=direct&chat-modality
  * @returns {Promise<{image?: string, text?: string, error?: string}>} 生成结果
  */
 async function generate(context, prompt, imgPaths, modelId, meta = {}) {
-    const { page } = context;
+    const { page, config } = context;
+    const waitTimeout = config?.backend?.pool?.waitTimeout ?? 120000;
     const textareaSelector = 'textarea';
 
     // Worker 已验证，直接解析模型配置
@@ -101,7 +102,7 @@ async function generate(context, prompt, imgPaths, modelId, meta = {}) {
         const responsePromise = waitApiResponse(page, {
             urlMatch: '/nextjs-api/stream',
             method: 'POST',
-            timeout: 120000,
+            timeout: waitTimeout,
             meta
         });
 

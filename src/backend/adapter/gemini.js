@@ -32,7 +32,8 @@ const TARGET_URL = 'https://gemini.google.com/app?hl=en';
  * @returns {Promise<{image?: string, error?: string}>}
  */
 async function generate(context, prompt, imgPaths, modelId, meta = {}) {
-    const { page } = context;
+    const { page, config } = context;
+    const waitTimeout = config?.backend?.pool?.waitTimeout ?? 120000;
     const inputLocator = page.getByRole('textbox');
     const sendBtnLocator = page.getByRole('button', { name: 'Send message' });
 
@@ -100,7 +101,7 @@ async function generate(context, prompt, imgPaths, modelId, meta = {}) {
         const streamApiResponsePromise = waitApiResponse(page, {
             urlMatch: 'assistant.lamda.BardFrontendService/StreamGenerate',
             method: 'POST',
-            timeout: 120000,
+            timeout: waitTimeout,
             meta
         });
 
@@ -138,7 +139,7 @@ async function generate(context, prompt, imgPaths, modelId, meta = {}) {
                     urlMatch: 'contribution.usercontent.google.com/download',
                     urlContains: 'filename=video.mp4',
                     method: 'GET',
-                    timeout: 180000,  // 视频生成可能更慢
+                    timeout: waitTimeout,
                     meta
                 });
             } catch (e) {

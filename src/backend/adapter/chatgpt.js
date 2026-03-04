@@ -31,7 +31,8 @@ const INPUT_SELECTOR = '.ProseMirror';
  * @returns {Promise<{image?: string, error?: string}>}
  */
 async function generate(context, prompt, imgPaths, modelId, meta = {}) {
-    const { page } = context;
+    const { page, config } = context;
+    const waitTimeout = config?.backend?.pool?.waitTimeout ?? 120000;
     const sendBtnLocator = page.getByRole('button', { name: 'Send prompt' });
 
     try {
@@ -94,7 +95,7 @@ async function generate(context, prompt, imgPaths, modelId, meta = {}) {
             conversationResponse = await waitApiResponse(page, {
                 urlMatch: 'backend-api/f/conversation',
                 method: 'POST',
-                timeout: 120000,  // 图片生成可能较慢
+                timeout: waitTimeout,  // 图片生成可能较慢
                 meta
             });
         } catch (e) {
@@ -144,7 +145,7 @@ async function generate(context, prompt, imgPaths, modelId, meta = {}) {
                 } catch {
                     return false;
                 }
-            }, { timeout: 120000 });
+            }, { timeout: waitTimeout });
         } catch (e) {
             const pageError = normalizePageError(e, meta);
             if (pageError) return pageError;

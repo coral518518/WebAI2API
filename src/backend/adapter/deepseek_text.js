@@ -82,7 +82,8 @@ async function configureModel(page, modelConfig, meta = {}) {
  * @returns {Promise<{text?: string, error?: string}>}
  */
 async function generate(context, prompt, imgPaths, modelId, meta = {}) {
-    const { page } = context;
+    const { page, config } = context;
+    const waitTimeout = config?.backend?.pool?.waitTimeout ?? 120000;
 
     try {
         logger.info('适配器', '开启新会话...', meta);
@@ -208,7 +209,7 @@ async function generate(context, prompt, imgPaths, modelId, meta = {}) {
             } catch {
                 return false;
             }
-        }, { timeout: 120000 });
+        }, { timeout: waitTimeout });
 
         // 5. 发送提示词
         logger.debug('适配器', '发送提示词...', meta);

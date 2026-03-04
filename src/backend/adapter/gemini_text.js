@@ -30,7 +30,8 @@ const TARGET_URL = 'https://gemini.google.com/app?hl=en';
  * @returns {Promise<{text?: string, error?: string}>}
  */
 async function generate(context, prompt, imgPaths, modelId, meta = {}) {
-    const { page } = context;
+    const { page, config } = context;
+    const waitTimeout = config?.backend?.pool?.waitTimeout ?? 120000;
     const inputLocator = page.getByRole('textbox');
     const sendBtnLocator = page.getByRole('button', { name: 'Send message' });
 
@@ -151,7 +152,7 @@ async function generate(context, prompt, imgPaths, modelId, meta = {}) {
         const apiResponsePromise = waitApiResponse(page, {
             urlMatch: 'assistant.lamda.BardFrontendService/StreamGenerate',
             method: 'POST',
-            timeout: 120000,
+            timeout: waitTimeout,
             meta
         });
 

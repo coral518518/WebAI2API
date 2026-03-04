@@ -52,6 +52,7 @@ function extractImage(text) {
  */
 async function generate(context, prompt, imgPaths, modelId, meta = {}) {
     const { page, config } = context;
+    const waitTimeout = config?.backend?.pool?.waitTimeout ?? 120000;
     const textareaSelector = 'textarea';
 
     try {
@@ -117,7 +118,7 @@ async function generate(context, prompt, imgPaths, modelId, meta = {}) {
         const responsePromise = waitApiResponse(page, {
             urlMatch: '/nextjs-api/stream',
             method: 'POST',
-            timeout: 120000,
+            timeout: waitTimeout,
             meta
         });
 
