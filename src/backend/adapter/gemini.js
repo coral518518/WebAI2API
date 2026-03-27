@@ -43,6 +43,7 @@ async function generate(context, prompt, imgPaths, modelId, meta = {}) {
 
         // 1. 等待输入框加载
         await waitForInput(page, inputLocator, { click: false });
+        await sleep(300, 500);
 
         // 2. 上传图片
         if (imgPaths && imgPaths.length > 0) {
