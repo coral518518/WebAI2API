@@ -19,7 +19,7 @@ import {
 import { logger } from '../../utils/logger.js';
 
 // --- 配置常量 ---
-const TARGET_URL = 'https://lmarena.ai/c/new?mode=direct&chat-modality=image';
+const TARGET_URL = 'https://arena.ai/image/direct';
 
 /**
  * 从响应文本中提取图片 URL
