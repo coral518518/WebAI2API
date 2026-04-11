@@ -423,6 +423,15 @@ export async function initBrowserBase(config, options = {}) {
         logger.info('浏览器', `[${markLabel}] CSS 注入已启用: ${enabledFeatures.join(', ')}`);
     }
 
+    // 拦截 window.close，防止各类验证/登录页面（如 Auth0）无限循环时意外关闭标签页
+    await context.addInitScript(`
+        if (typeof window !== 'undefined') {
+            window.close = function() {
+                console.warn('[WebAI] 页面尝试调用 window.close()，已被拦截。');
+            };
+        }
+    `);
+
     // 返回 context 和 page（导航、预热、cursor 初始化由工作池负责）
     return {
         context,

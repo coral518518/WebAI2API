@@ -152,14 +152,20 @@ export class Worker {
         this.page.on('close', async () => {
             // 如果浏览器还在运行，说明只是标签页被关闭
             if (this.browser && !this.browser.isClosed?.()) {
-                logger.warn('工作池', `[${this.name}] 标签页已关闭，正在重新创建...`);
+                logger.warn('工作池', `[${this.name}] 标签页已关闭，将在 3 秒后重新创建...`);
                 this.initialized = false;
                 this.page = null;
-                try {
-                    await this._recreatePage();
-                } catch (e) {
-                    logger.error('工作池', `[${this.name}] 重新创建标签页失败: ${e.message}`);
-                }
+                
+                // 增加延迟，防止页面不断自我关闭（如 Auth0 无限刷新）导致的 CPU 飙升
+                setTimeout(async () => {
+                    // 如果在此期间浏览器已经关闭了，就不继续了
+                    if (!this.browser || this.browser.isClosed?.()) return;
+                    try {
+                        await this._recreatePage();
+                    } catch (e) {
+                        logger.error('工作池', `[${this.name}] 重新创建标签页失败: ${e.message}`);
+                    }
+                }, 3000);
             }
         });
     }
