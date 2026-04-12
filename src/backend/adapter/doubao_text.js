@@ -46,7 +46,7 @@ async function generate(context, prompt, imgPaths, modelId, meta = {}) {
         await gotoWithCheck(page, TARGET_URL);
 
         // 1. 等待输入框加载
-        const inputLocator = page.locator('textarea[data-testid="chat_input_input"]');
+        const inputLocator = page.locator('textarea.semi-input-textarea');
         await waitForInput(page, inputLocator, { click: false });
 
         // 2. 选择模型
@@ -55,8 +55,9 @@ async function generate(context, prompt, imgPaths, modelId, meta = {}) {
         await sleep(300, 500);
 
         // 给予 1 秒的缓冲时间等待 React 渲染按钮
-        const modelSelectorBtn = page.locator('button[aria-haspopup="menu"]')
-            .filter({ has: page.locator('[data-testid="deep-thinking-action-button"], [data-testid="mode-select-action-button"]') })
+        await sleep(1000); // 确保有一定的渲染时间
+        const modelSelectorBtn = page.locator('#input-engine-container button[aria-haspopup="menu"]')
+            .filter({ hasText: /Fast|Think|Pro|快速|思考|专家|專家/ })
             .first();
         let selectorExists = false;
         try {
@@ -81,7 +82,7 @@ async function generate(context, prompt, imgPaths, modelId, meta = {}) {
                 }
             }
             await safeClick(page, menuItem, { bias: 'button' });
-            await sleep(200, 400);
+            await sleep(600, 1000); // 留出充足时间等待模型选择浮窗自动关闭，防止遮挡上传图标
         }
 
         // 3. 上传图片 (如果有)
@@ -105,15 +106,15 @@ async function generate(context, prompt, imgPaths, modelId, meta = {}) {
             page.on('response', applyUploadHandler);
 
             try {
-                // 点击上传菜单按钮
+                // 点击上传菜单按钮（排除掉含有模型名称或带有“更多”文案的按钮）
                 const uploadMenuBtn = page.locator('#input-engine-container button[aria-haspopup="menu"]')
-                    .filter({ hasNot: page.locator('[data-testid="deep-thinking-action-button"], [data-testid="mode-select-action-button"]') })
+                    .filter({ hasNot: page.locator('text=/Fast|Think|Pro|快速|思考|专家|專家|更多/') })
                     .first();
                 await safeClick(page, uploadMenuBtn, { bias: 'button' });
                 await sleep(300, 500);
 
                 // 点击上传文件选项
-                const uploadItem = page.locator('div[data-testid="upload_file_panel_upload_item"][role="menuitem"]');
+                const uploadItem = page.locator('div[role="menuitem"]').filter({ hasText: /上传文件或图片|上傳檔案或圖片|Upload File or Image/ });
                 await uploadFilesViaChooser(page, uploadItem, imgPaths, {
                     uploadValidator: (response) => {
                         if (response.status() !== 200 || response.request().method() !== 'POST') return false;
@@ -187,7 +188,7 @@ async function generate(context, prompt, imgPaths, modelId, meta = {}) {
         });
 
         // 6. 点击发送
-        const sendBtn = page.locator('button[data-testid="chat_input_send_button"]');
+        const sendBtn = page.locator('button#flow-end-msg-send');
         await sendBtn.waitFor({ state: 'visible', timeout: 10000 });
         logger.info('适配器', '点击发送...', meta);
         await safeClick(page, sendBtn, { bias: 'button' });

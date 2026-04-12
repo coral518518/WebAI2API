@@ -41,13 +41,13 @@ async function generate(context, prompt, imgPaths, modelId, meta = {}) {
 
         // 1. 点击进入图片生成模式
         logger.debug('适配器', '进入图片生成模式...', meta);
-        const skillBtn = page.locator('button[data-testid="skill_bar_button_3"]');
+        const skillBtn = page.locator('button[data-skill-id="skill_bar_button_3"]');
         await skillBtn.waitFor({ state: 'visible', timeout: 30000 });
         await safeClick(page, skillBtn, { bias: 'button' });
 
         // 2. 选择模型
         logger.debug('适配器', `选择模型: ${codeName}...`, meta);
-        const modelBtn = page.locator('button[data-testid="image-creation-chat-input-picture-model-button"]');
+        const modelBtn = page.locator('button').filter({ hasText: /Seedream/i }).first();
         await modelBtn.waitFor({ state: 'visible', timeout: 10000 });
         await safeClick(page, modelBtn, { bias: 'button' });
         await sleep(300, 500);
@@ -77,7 +77,7 @@ async function generate(context, prompt, imgPaths, modelId, meta = {}) {
             page.on('response', applyUploadHandler);
 
             try {
-                const uploadBtn = page.locator('button[data-testid="image-creation-chat-input-picture-reference-button"]');
+                const uploadBtn = page.locator('button').filter({ hasText: /Reference Image|参考图|參考圖/i }).first();
                 await uploadBtn.waitFor({ state: 'visible', timeout: 10000 });
 
                 await uploadFilesViaChooser(page, uploadBtn, imgPaths, {
@@ -98,7 +98,7 @@ async function generate(context, prompt, imgPaths, modelId, meta = {}) {
         }
 
         // 4. 填写提示词
-        const inputLocator = page.locator('div[data-testid="chat_input_input"][role="textbox"]');
+        const inputLocator = page.locator('#input-engine-container div[role="textbox"]');
         await waitForInput(page, inputLocator, { click: true });
         await humanType(page, inputLocator, prompt);
 
@@ -146,7 +146,7 @@ async function generate(context, prompt, imgPaths, modelId, meta = {}) {
         });
 
         // 6. 点击发送
-        const sendBtn = page.locator('button[data-testid="chat_input_send_button"]');
+        const sendBtn = page.locator('button#flow-end-msg-send');
         await sendBtn.waitFor({ state: 'visible', timeout: 10000 });
         logger.info('适配器', '点击发送...', meta);
         await safeClick(page, sendBtn, { bias: 'button' });
