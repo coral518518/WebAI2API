@@ -15,7 +15,8 @@ import {
     RocketOutlined,
     RedoOutlined,
     InboxOutlined,
-    LoadingOutlined
+    LoadingOutlined,
+    CopyOutlined
 } from '@ant-design/icons-vue';
 import { message, Modal } from 'ant-design-vue';
 
@@ -52,6 +53,7 @@ const previewModalVisible = ref(false);
 const previewContent = ref('');
 const previewMediaType = ref('text'); // text, image, video
 const previewMediaUrl = ref('');
+const previewTitle = ref('快速预览');
 
 // 媒体数据缓存 (blob URLs)
 const mediaCache = ref({});
@@ -466,10 +468,29 @@ const handleRefresh = () => {
 const previewResponse = async (record) => {
     previewModalVisible.value = true;
     previewMediaType.value = 'text';
+    previewTitle.value = '响应预览';
     if (record.status === 'failed') {
         previewContent.value = record.error_message || '未知错误';
     } else {
         previewContent.value = record.response_text || '无响应';
+    }
+};
+
+// 快速预览 Prompt 内容
+const previewPrompt = (record) => {
+    previewModalVisible.value = true;
+    previewMediaType.value = 'text';
+    previewTitle.value = 'Prompt 预览';
+    previewContent.value = record.prompt || '无内容';
+};
+
+// 复制预览内容到剪贴板
+const copyPreviewContent = async () => {
+    try {
+        await navigator.clipboard.writeText(previewContent.value);
+        message.success('已复制到剪贴板');
+    } catch (e) {
+        message.error('复制失败');
     }
 };
 
@@ -510,6 +531,7 @@ const closePreview = () => {
     previewContent.value = '';
     previewMediaUrl.value = '';
     previewMediaType.value = 'text';
+    previewTitle.value = '快速预览';
 };
 
 // 多选变化
@@ -641,6 +663,20 @@ const sendRequest = () => {
     }, 1000);
 };
 
+// 静默删除记录（不弹确认框）
+const silentDeleteRecord = async (id) => {
+    try {
+        await fetch('/admin/history', {
+            method: 'DELETE',
+            headers: {
+                ...settingsStore.getHeaders(),
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ ids: [id] })
+        });
+    } catch (e) { /* 静默失败 */ }
+};
+
 // 从历史记录重发
 const resendFromRecord = (record) => {
     const modelId = record.model_id || record.model_name;
@@ -651,7 +687,15 @@ const resendFromRecord = (record) => {
         sendPrompt.value = record.prompt;
     }
     sendImageList.value = [];
+
+    // 如果原记录是失败状态（没有生成回复或图片），重发后删除旧记录
+    const shouldDelete = record.status === 'failed';
+
     sendRequest();
+
+    if (shouldDelete) {
+        silentDeleteRecord(record.id);
+    }
 };
 
 // === 自动刷新 ===
@@ -877,9 +921,9 @@ onUnmounted(() => {
             @change="handleTableChange"
         >
             <template #bodyCell="{ column, record }">
-                <!-- Prompt 列：支持多行 -->
+                <!-- Prompt 列：支持多行，点击弹出预览 -->
                 <template v-if="column.key === 'prompt'">
-                    <div class="multiline-text">
+                    <div class="multiline-text clickable" @click="previewPrompt(record)" title="点击查看完整内容">
                         {{ truncateText(record.prompt, 120) }}
                     </div>
                 </template>
@@ -1067,7 +1111,13 @@ onUnmounted(() => {
         @cancel="closePreview"
     >
         <template #title>
-            <span>快速预览</span>
+            <div style="display: flex; align-items: center; gap: 8px;">
+                <span>{{ previewTitle }}</span>
+                <a-button v-if="previewMediaType === 'text'" type="text" size="small" @click="copyPreviewContent">
+                    <template #icon><CopyOutlined /></template>
+                    复制全文
+                </a-button>
+            </div>
         </template>
         <div v-if="previewMediaType === 'text'" class="preview-text-content">
             {{ previewContent }}

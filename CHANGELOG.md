@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.6.6] - 2026-04-12
+
+### 🐛 Fixed
+- **WebUI**
+  - 修复媒体文件服务接口未拼接目录前缀导致图片无法预览的问题 (ref #70)
+  - 历史模块路径改为绝对路径，避免非项目根目录启动时路径解析失败
+
+### ✨ Added
+- **WebUI**
+  - 请求历史 Prompt 列支持点击弹窗预览完整内容
+  - 预览弹窗新增「复制全文」按钮
+  - 重发失败记录时自动删除旧的失败条目
+
 ## [3.6.5] - 2026-04-09
 
 ### ✨ Added
