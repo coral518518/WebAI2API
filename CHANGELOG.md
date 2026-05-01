@@ -5,8 +5,57 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.6.7] - 2026-04-24
+
+### 🐛 Fixed
+- **适配器**
+  - 修复 ChatGPT 缺少系统提示词的问题
+  - 尝试修复 ChatGPT 选择模型的问题 （目前应该是灰度测试，有些账号界面不一样，并且作者没有会员账号仅为猜测修复）
+
+### ✨ Added
+- **WebUI**
+  - Gemini 和 ChatGPT 的临时对话模式开关（现可以在适配器设置中单独开关）
+
+- **服务器**
+  - 支持开启图片生成结果使用 Markdown 格式返回
+
+## [3.6.6] - 2026-04-12
+
+### 🐛 Fixed
+- **WebUI**
+  - 修复媒体文件服务接口未拼接目录前缀导致图片无法预览的问题 (ref #70)
+  - 历史模块路径改为绝对路径，避免非项目根目录启动时路径解析失败
+
+### ✨ Added
+- **WebUI**
+  - 请求历史 Prompt 列支持点击弹窗预览完整内容
+  - 预览弹窗新增「复制全文」按钮
+  - 重发失败记录时自动删除旧的失败条目
+
 ## [3.6.5] - 2026-04-09
 
+### ✨ Added
+- **适配器**
+  - ChatGPT 和 Gemini 改用临时对话模式防止污染历史列表
+
+### 🐛 Fixed
+- **适配器**
+  - 修复 ChatGPT 在 LaTeX 输出下可能会导致截断的问题
+
+## [3.6.5] - 2026-04-09
+
+### ✨ Added
+- **适配器**
+  - DeepSeek 支持专业模式
+
+### 🐛 Fixed
+- **适配器**
+  - 修复豆包因前端更新导致点击失效
+  - 修复 ChatGPT 无法发送提示词的问题
+
+## [3.6.5] - 2026-04-09
+
+### 🔄 Changed
 - **适配器**
   - 更新 Arena 的模型列表
   - 更新 ChatGPT 文本生成的模型列表

@@ -16,7 +16,7 @@ import {
 import { logger } from '../../utils/logger.js';
 
 // --- 配置常量 ---
-const TARGET_URL = 'https://chatgpt.com/';
+const TARGET_URL = 'https://chatgpt.com/'; // 基础URL
 const INPUT_SELECTOR = '.ProseMirror';
 
 /**
@@ -49,12 +49,17 @@ async function selectModel(page, codeName, meta = {}) {
             await sleep(300, 500);
         }
 
-        // 3. 查找匹配 codeName 开头的 menuitem
-        const targetMenuItem = page.getByRole('menuitem', { name: new RegExp(`^${codeName}`) });
-        const targetExists = await targetMenuItem.count();
+        // 3. 查找匹配 codeName 开头的 menuitem 或 menuitemradio
+        let targetMenuItem = page.getByRole('menuitemradio', { name: new RegExp(`^${codeName}`, 'i') });
+        let targetExists = await targetMenuItem.count();
+        if (targetExists === 0) {
+            targetMenuItem = page.getByRole('menuitem', { name: new RegExp(`^${codeName}`, 'i') });
+            targetExists = await targetMenuItem.count();
+        }
+
         if (targetExists > 0) {
             logger.info('适配器', `正在选择模型: ${codeName}`, meta);
-            await safeClick(page, targetMenuItem, { bias: 'button' });
+            await safeClick(page, targetMenuItem.first(), { bias: 'button' });
             return true;
         } else {
             logger.debug('适配器', `未找到模型 ${codeName}，使用默认模型`, meta);
@@ -85,17 +90,22 @@ async function generate(context, prompt, imgPaths, modelId, meta = {}) {
     const sendBtnLocator = page.getByRole('button', { name: 'Send prompt' });
 
     try {
+        const useTemp = config?.backend?.adapter?.chatgpt_text?.temporaryChat || false;
+        const targetUrl = useTemp ? 'https://chatgpt.com/?temporary-chat=true' : 'https://chatgpt.com/'; // 感谢 @zhongjianhua163 提供临时对话方案
         logger.info('适配器', '开启新会话...', meta);
-        await gotoWithCheck(page, TARGET_URL);
+        await gotoWithCheck(page, targetUrl);
 
         // 1. 等待输入框加载
         await waitForInput(page, INPUT_SELECTOR, { click: false });
 
         // 2. 选择模型
-        const modelConfig = manifest.models.find(m => m.id === modelId);
-        const targetModel = modelConfig?.codeName || modelId;
-        if (targetModel) {
-            await selectModel(page, targetModel, meta);
+        if (modelId) {
+            const modelConfig = manifest.models.find(m => m.id === modelId);
+            if (modelConfig && modelConfig.codeName) {
+                await selectModel(page, modelConfig.codeName, meta);
+            } else {
+                logger.info('适配器', `未指定模型或未知模型 (${modelId})，跳过模型选择`, meta);
+            }
         }
 
         // 3. 上传图片 (双击 Add files and more 按钮)
@@ -139,92 +149,92 @@ async function generate(context, prompt, imgPaths, modelId, meta = {}) {
         await safeClick(page, INPUT_SELECTOR, { bias: 'input' });
         await humanType(page, INPUT_SELECTOR, prompt);
 
-        // 5. 发送提示词
-        logger.debug('适配器', '发送提示词...', meta);
-        await safeClick(page, sendBtnLocator, { bias: 'button' });
-
-        logger.info('适配器', '等待生成结果...', meta);
-
-        // 6. 监听 conversation API 的 SSE 流，解析文本内容
+        // 4. 先启动 SSE 监听，再发送提示词（避免竞态）
         logger.info('适配器', '监听 SSE 流获取文本...', meta);
 
         let textContent = '';
         let isComplete = false;
-        let targetMessageId = null;  // 追踪目标消息 ID
+        let targetMessageId = null;  // 只追踪 channel: "final" 的消息
 
-        try {
-            await page.waitForResponse(async (response) => {
-                const url = response.url();
-                if (!url.includes('backend-api/f/conversation')) return false;
-                if (response.request().method() !== 'POST') return false;
-                if (response.status() !== 200) return false;
+        const responsePromise = page.waitForResponse(async (response) => {
+            const url = response.url();
+            if (!url.includes('backend-api/f/conversation')) return false;
+            if (response.request().method() !== 'POST') return false;
+            if (response.status() !== 200) return false;
 
-                try {
-                    const body = await response.text();
-                    const lines = body.split('\n');
+            try {
+                const body = await response.text();
+                const lines = body.split('\n');
 
-                    for (const line of lines) {
-                        // 跳过空行和事件行
-                        if (!line.startsWith('data: ')) continue;
+                for (const line of lines) {
+                    // 跳过空行和事件行
+                    if (!line.startsWith('data: ')) continue;
 
-                        const dataStr = line.slice(6).trim();
-                        if (dataStr === '[DONE]') {
-                            isComplete = true;
-                            continue;
-                        }
-
-                        try {
-                            const data = JSON.parse(dataStr);
-
-                            // 检测目标消息 (assistant 角色, channel: "final", content_type: "text")
-                            if (data.v?.message?.author?.role === 'assistant' &&
-                                data.v?.message?.channel === 'final' &&
-                                data.v?.message?.content?.content_type === 'text') {
-                                targetMessageId = data.v.message.id;
-                                // 初始内容
-                                const parts = data.v.message.content.parts;
-                                if (parts && parts[0]) {
-                                    textContent = parts[0];
-                                }
-                            }
-
-                            // 累积 delta 内容 (append 操作)
-                            if (data.o === 'append' && data.p === '/message/content/parts/0' && data.v) {
-                                textContent += data.v;
-                            }
-
-                            // 简单的 delta 追加 (没有 p/o，只有 v)
-                            if (data.v && typeof data.v === 'string' && !data.o && !data.p && targetMessageId) {
-                                textContent += data.v;
-                            }
-
-                            // patch 操作中的 append
-                            if (Array.isArray(data.v)) {
-                                for (const patch of data.v) {
-                                    if (patch.o === 'append' && patch.p === '/message/content/parts/0' && patch.v) {
-                                        textContent += patch.v;
-                                    }
-                                    // 检查是否完成
-                                    if (patch.p === '/message/status' && patch.v === 'finished_successfully') {
-                                        isComplete = true;
-                                    }
-                                }
-                            }
-
-                            // message_stream_complete 表示完成
-                            if (data.type === 'message_stream_complete') {
-                                isComplete = true;
-                            }
-                        } catch {
-                            // 忽略解析错误
-                        }
+                    const dataStr = line.slice(6).trim();
+                    if (dataStr === '[DONE]') {
+                        isComplete = true;
+                        continue;
                     }
 
-                    return isComplete;
-                } catch {
-                    return false;
+                    try {
+                        const data = JSON.parse(dataStr);
+
+                        // 检测目标消息 (assistant 角色, channel: "final", content_type: "text")
+                        if (data.v?.message?.author?.role === 'assistant' &&
+                            data.v?.message?.channel === 'final' &&
+                            data.v?.message?.content?.content_type === 'text') {
+                            targetMessageId = data.v.message.id;
+                            // 重置内容（即使 parts[0] 为空也要重置，清除之前 commentary 的文本）
+                            const parts = data.v.message.content.parts;
+                            textContent = (parts && parts[0]) || '';
+                        }
+
+                        // 以下所有内容累积都必须在 targetMessageId 设置之后才执行
+                        // 避免误收 commentary / thinking 频道的内容
+                        if (!targetMessageId) continue;
+
+                        // 累积 delta 内容 (append 操作，顶层 path)
+                        if (data.o === 'append' && data.p === '/message/content/parts/0' && data.v) {
+                            textContent += data.v;
+                        }
+
+                        // patch 操作中的 append (数组格式)
+                        if (Array.isArray(data.v)) {
+                            for (const patch of data.v) {
+                                if (patch.o === 'append' && patch.p === '/message/content/parts/0' && patch.v) {
+                                    textContent += patch.v;
+                                }
+                                // 仅在 targetMessageId 存在时检查完成
+                                if (patch.p === '/message/status' && patch.v === 'finished_successfully') {
+                                    isComplete = true;
+                                }
+                            }
+                        }
+
+                        // message_stream_complete 表示完成
+                        if (data.type === 'message_stream_complete') {
+                            isComplete = true;
+                        }
+                    } catch {
+                        // 忽略解析错误
+                    }
                 }
-            }, { timeout: waitTimeout });
+
+                return isComplete;
+            } catch {
+                return false;
+            }
+        }, { timeout: waitTimeout });
+
+        // 5. 发送提示词
+        logger.debug('适配器', '发送提示词...', meta);
+        await page.keyboard.press('Enter');
+
+        logger.info('适配器', '等待生成结果...', meta);
+
+        // 6. 等待 SSE 响应完成
+        try {
+            await responsePromise;
         } catch (e) {
             const pageError = normalizePageError(e, meta);
             if (pageError) return pageError;
@@ -258,17 +268,28 @@ export const manifest = {
     displayName: 'ChatGPT (文本生成)',
     description: '使用 ChatGPT 官网生成文本，支持多模型切换和图片上传。需要已登录的 ChatGPT 账户，若需要选择模型，请使用会员账号 (包含 K12 教室认证账号)。',
 
+    // 配置项模式
+    configSchema: [
+        {
+            key: 'temporaryChat',
+            label: '临时对话',
+            type: 'boolean',
+            default: false,
+            note: '开启后将使用临时对话模式 (?temporary-chat=true)'
+        }
+    ],
+
     // 入口 URL
     getTargetUrl(config, workerConfig) {
-        return TARGET_URL;
+        const useTemp = config?.backend?.adapter?.chatgpt_text?.temporaryChat || false;
+        return useTemp ? 'https://chatgpt.com/?temporary-chat=true' : 'https://chatgpt.com/';
     },
 
     // 模型列表
     models: [
-        { id: 'gpt-5.4', codeName: 'GPT-5.4 Instant', imagePolicy: 'optional' },
-        { id: 'gpt-5.4-thinking', codeName: 'GPT-5.4 Thinking', imagePolicy: 'optional' },
-        { id: 'gpt-5.3', codeName: 'GPT-5.3 Instant', imagePolicy: 'optional' },
-        { id: 'gpt-5.3-thinking', codeName: 'GPT-5.3 Thinking', imagePolicy: 'optional' },
+        { id: 'gpt-instant', codeName: 'Instant', imagePolicy: 'optional', type: 'text' },
+        { id: 'gpt-thinking', codeName: 'Thinking', imagePolicy: 'optional', type: 'text' },
+        { id: 'gpt-pro', codeName: 'Pro', imagePolicy: 'optional', type: 'text' }
     ],
 
     // 无需导航处理器

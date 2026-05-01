@@ -43,7 +43,8 @@ import {
     deleteByDateRange as deleteHistoryByDateRange,
     retryMediaDownload,
     getStats as getHistoryStats,
-    getModelList as getHistoryModelList
+    getModelList as getHistoryModelList,
+    getMediaDir
 } from '../../../utils/history.js';
 import path from 'path';
 import fs from 'fs/promises';
@@ -519,7 +520,8 @@ export function createAdminRouter(context) {
                 }
 
                 try {
-                    const data = await fs.readFile(filepath);
+                    const fullPath = path.join(getMediaDir(), filepath);
+                    const data = await fs.readFile(fullPath);
                     const ext = path.extname(filepath).toLowerCase();
                     const mimeTypes = {
                         '.png': 'image/png',
